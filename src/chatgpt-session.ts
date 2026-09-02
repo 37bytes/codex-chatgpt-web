@@ -1,5 +1,6 @@
 import type { Locator, Page } from "playwright-core";
 import type { ChatGptWebAccountCapabilities } from "./chatgpt-web-models";
+import { waitForVisible } from "./lib/wait-for-visible";
 
 export const CHATGPT_TEMPORARY_CHAT_URL = "https://chatgpt.com/?temporary-chat=true";
 export const CHATGPT_COMPOSER_SELECTOR = [
@@ -17,7 +18,10 @@ export const CHATGPT_EFFORT_MENU_SELECTOR = [
   '[role="group"]:has([role="menuitemradio"], [data-model-reasoning-effort-slider])',
 ].join(", ");
 export const CHATGPT_EFFORT_ITEM_SELECTOR = '[role="menuitemradio"]';
-export const CHATGPT_EFFORT_SLIDER_SELECTOR = '[data-model-reasoning-effort-slider] [role="slider"]';
+export const CHATGPT_EFFORT_SLIDER_SELECTOR = [
+  '[data-model-reasoning-effort-slider] [role="slider"]',
+  '[role="menu"] [role="slider"]',
+].join(", ");
 export const CHATGPT_EFFORT_SLIDER_MAX_OPTIONS = 5;
 export const CHATGPT_STOP_BUTTON_SELECTOR = '[data-testid="stop-button"]';
 export const CHATGPT_COMPLETION_ACTION_SELECTOR = 'button[data-testid="copy-turn-action-button"]';
@@ -125,19 +129,22 @@ export async function detectChatGptAccountCapabilities(
   const menu = page.locator(CHATGPT_EFFORT_MENU_SELECTOR).last();
   const menuVisible = await menu.isVisible().catch(() => false);
   const menuExpanded = await effortButton.getAttribute("aria-expanded").catch(() => null);
-  if (!menuVisible && menuExpanded !== "true") await effortButton.press("Enter");
+  if (!menuVisible && menuExpanded !== "true") await effortButton.click({ force: true });
   try {
     const efforts = menu.locator(CHATGPT_EFFORT_ITEM_SELECTOR);
     const slider = page.locator(CHATGPT_EFFORT_SLIDER_SELECTOR).filter({ visible: true }).last();
     const waitAbort = new AbortController();
     try {
       const ready = await Promise.race([
-        efforts.first().waitFor({ state: "visible", timeout: 70_000, signal: waitAbort.signal })
+        waitForVisible(efforts.first(), 70_000, waitAbort.signal)
           .then(() => "items" as const),
-        slider.waitFor({ state: "visible", timeout: 70_000, signal: waitAbort.signal })
+        waitForVisible(slider, 70_000, waitAbort.signal)
           .then(() => "slider" as const),
       ]);
-      const sliderVisible = ready === "slider" || await slider.isVisible().catch(() => false);
+      let sliderVisible = ready === "slider" || await slider.isVisible().catch(() => false);
+      if (!sliderVisible) {
+        sliderVisible = await waitForVisible(slider, 5_000).then(() => true, () => false);
+      }
       if (!sliderVisible) {
         return { solAvailable: true, proAvailable: await efforts.count() >= 5 };
       }

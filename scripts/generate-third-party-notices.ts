@@ -18,6 +18,11 @@ const visited = new Map<string, { directory: string; manifest: PackageJson }>();
 const bundledLicenseOverrides = new Map([
   ["tiktoken@1.0.22", join(root, "LICENSES", "tiktoken-MIT.txt")],
 ]);
+const spdxLicenseOverrides = new Map([
+  ["Apache-2.0", join(root, "LICENSES", "Apache-2.0.md")],
+  ["CC0-1.0", join(root, "LICENSES", "CC0-1.0.txt")],
+  ["MIT", join(root, "LICENSE")],
+]);
 
 function packageDirectory(name: string, from: string): string | undefined {
   let cursor = from;
@@ -54,7 +59,7 @@ if (includeLauncher) {
 
 function licenseFiles(directory: string): string[] {
   return readdirSync(directory)
-    .filter(name => /^(licen[cs]e|copying|notice)(?:\..*)?$/i.test(name))
+    .filter(name => /^(licen[cs]e|copying|notice)(?:[.-].*)?$/i.test(name))
     .filter(name => statSync(join(directory, name)).isFile())
     .sort();
 }
@@ -64,7 +69,8 @@ const sections = [...visited.values()]
   .map(({ directory, manifest }) => {
     const files = licenseFiles(directory);
     const identity = `${manifest.name}@${manifest.version}`;
-    const override = bundledLicenseOverrides.get(identity);
+    const override = bundledLicenseOverrides.get(identity)
+      ?? (files.length === 0 && typeof manifest.license === "string" ? spdxLicenseOverrides.get(manifest.license) : undefined);
     if (files.length === 0 && !override) throw new Error(`No license/notice file found for ${identity}`);
     if (override && !existsSync(override)) throw new Error(`Bundled license override is missing for ${identity}`);
     const license = typeof manifest.license === "string" ? manifest.license : manifest.license?.type ?? "unknown";

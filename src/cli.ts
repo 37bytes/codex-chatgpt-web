@@ -6,6 +6,7 @@ import { existsSync, rmSync } from "node:fs";
 import { stdin, stdout } from "node:process";
 import { checkBrowserEngine, loginToChatGpt } from "./browser-login";
 import { CHATGPT_CONNECTOR_NAME, getConfigDir, getConfigPath, loadConfig, loadConfigForSetup } from "./config";
+import { validateCamoufoxStorageState } from "./camoufox-validator";
 import { inspectLauncherBrowserHost, readLauncherBrowserHostDescriptor } from "./launcher-browser-host";
 import {
   activateCodexIntegration,
@@ -37,7 +38,7 @@ Usage:
   codex-chatgpt-web doctor [--json]
   codex-chatgpt-web route <status|connect|disconnect>
   codex-chatgpt-web subagents <status|compatibility-v1|native>
-  codex-chatgpt-web browser check
+  codex-chatgpt-web browser <check|validate-storage-state PATH>
   codex-chatgpt-web dev launcher
   codex-chatgpt-web dev status [--json]
   codex-chatgpt-web dev setup <--browser-only|--full> [options]
@@ -406,15 +407,22 @@ async function main(): Promise<void> {
   else if (command === "subagents") await subagentsCommand(args);
   else if (command === "browser") {
     const action = args.shift();
-    assertNoArgs(args);
-    if (action !== "check") throw new Error("Browser command must be: browser check");
-    const config = loadConfig();
-    if (config.browserHost === "launcher") {
-      await inspectLauncherBrowserHost(config.browserHostDescriptorPath!);
-      stdout.write("Playwright can reach the authenticated ChatGPT surface embedded in the launcher.\n");
+    if (action === "validate-storage-state") {
+      const path = args.shift();
+      assertNoArgs(args);
+      if (!path) throw new Error("browser validate-storage-state requires a storage-state path");
+      stdout.write(`${JSON.stringify(await validateCamoufoxStorageState(path))}\n`);
     } else {
-      await checkBrowserEngine(config);
-      stdout.write("Playwright can launch the configured Chrome executable.\n");
+      assertNoArgs(args);
+      if (action !== "check") throw new Error("Browser command must be: browser check or browser validate-storage-state PATH");
+      const config = loadConfig();
+      if (config.browserHost === "launcher") {
+        await inspectLauncherBrowserHost(config.browserHostDescriptorPath!);
+        stdout.write("Playwright can reach the authenticated ChatGPT surface embedded in the launcher.\n");
+      } else {
+        await checkBrowserEngine(config);
+        stdout.write("Playwright can launch the configured Chrome executable.\n");
+      }
     }
   } else if (command === "serve") {
     assertNoArgs(args);

@@ -1003,11 +1003,12 @@ test("effort selection uses structural menu and slider indices instead of locali
   expect(workerSource).toContain("mode.uiEffortIndex");
   expect(workerSource).toContain("CHATGPT_EFFORT_MENU_SELECTOR");
   expect(workerSource).toContain("CHATGPT_EFFORT_ITEM_SELECTOR");
-  expect(workerSource).toContain('timeout: 70_000');
+  expect(workerSource).toContain("waitForVisible(currentEffort, 70_000");
   expect(sessionSource).toContain('[role="menu"]:has([role="menuitemradio"], [data-model-reasoning-effort-slider])');
   expect(sessionSource).toContain('[role="group"]:has([role="menuitemradio"], [data-model-reasoning-effort-slider])');
   expect(sessionSource).toContain('[role="menuitemradio"]');
   expect(sessionSource).toContain('[data-model-reasoning-effort-slider] [role="slider"]');
+  expect(sessionSource).toContain('[role="menu"] [role="slider"]');
   expect(sessionSource).not.toContain(":popover-open");
   expect(sessionSource).not.toContain("data-radix-collection-item");
   expect(workerSource).toContain('getAttribute("aria-checked")');
@@ -1018,6 +1019,14 @@ test("effort selection uses structural menu and slider indices instead of locali
   expect(workerSource).not.toContain("currentLabel === targetLabel");
   expect(workerSource).not.toContain("chatGptEffortLabelsMatch");
   expect(workerSource).not.toMatch(/getByRole\("button", \{\s*name: "(?:Instant|Medium|High|Extra High|Pro)"/);
+});
+
+test("managed Camoufox preserves browser-only prompts and retries the header-only surface", () => {
+  const workerSource = readFileSync(new URL("../src/adapters/chatgpt-web/browser-worker.ts", import.meta.url), "utf8");
+  expect(workerSource).toContain('managedBrowserEngine() === "camoufox"');
+  expect(workerSource).toContain('page.getByTestId("model-switcher-dropdown-button")');
+  expect(workerSource).toContain('page.keyboard.press("Shift+Enter")');
+  expect(workerSource).toContain("newManagedBrowserContext");
 });
 
 test("effort slider ARIA state fails closed on malformed and unsupported ranges", () => {

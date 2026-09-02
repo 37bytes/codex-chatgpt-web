@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright-core";
+import { type Browser, type BrowserContext, type Locator, type Page } from "playwright-core";
+import { launchManagedBrowser, managedBrowserEngine, newManagedBrowserContext } from "../../camoufox-browser";
 import {
   atomicWriteFile,
   CHATGPT_CONNECTOR_NAME,
@@ -13,6 +14,7 @@ import {
   legacyChatGptConnectorMigrationMessage,
   LEGACY_CHATGPT_CONNECTOR_NAMES,
 } from "../../config";
+import { waitForVisible } from "../../lib/wait-for-visible";
 import { estimateTokens } from "../../lib/token-estimate";
 import type { CodexProviderConfig } from "../../types";
 import { parseDataUrl } from "../image";
@@ -1347,14 +1349,14 @@ export class ChatGptBrowserWorker {
     if (!existsSync(this.config.storageStatePath) || !existsSync(loginVerificationMarkerPath(this.config.storageStatePath))) {
       throw new Error(`ChatGPT web login state is missing: ${this.config.storageStatePath}`);
     }
-    if (!existsSync(this.config.chromeExecutablePath)) {
+    if (managedBrowserEngine() === "chromium" && !existsSync(this.config.chromeExecutablePath)) {
       throw new Error(`Configured Chrome executable does not exist: ${this.config.chromeExecutablePath}`);
     }
-    this.browser = await chromium.launch({
-      executablePath: this.config.chromeExecutablePath,
-      headless: !this.config.headed,
+    this.browser = await launchManagedBrowser({
+      chromeExecutablePath: this.config.chromeExecutablePath,
+      headed: this.config.headed,
     });
-    this.context = await this.browser.newContext({ storageState: this.config.storageStatePath });
+    this.context = await newManagedBrowserContext(this.browser, this.config.storageStatePath);
     this.page = await this.context.newPage();
     return this.page;
   }
@@ -1365,14 +1367,14 @@ export class ChatGptBrowserWorker {
       if (!existsSync(this.config.storageStatePath) || !existsSync(loginVerificationMarkerPath(this.config.storageStatePath))) {
         throw new Error(`ChatGPT web login state is missing: ${this.config.storageStatePath}`);
       }
-      if (!existsSync(this.config.chromeExecutablePath)) {
+      if (managedBrowserEngine() === "chromium" && !existsSync(this.config.chromeExecutablePath)) {
         throw new Error(`Configured Chrome executable does not exist: ${this.config.chromeExecutablePath}`);
       }
-      const browser = await chromium.launch({
-        executablePath: this.config.chromeExecutablePath,
-        headless: !this.config.headed,
+      const browser = await launchManagedBrowser({
+        chromeExecutablePath: this.config.chromeExecutablePath,
+        headed: this.config.headed,
       });
-      const context = await browser.newContext({ storageState: this.config.storageStatePath });
+      const context = await newManagedBrowserContext(browser, this.config.storageStatePath);
       this.browser = browser;
       this.context = context;
       return { browser, context };
@@ -1405,6 +1407,7 @@ export class ChatGptBrowserWorker {
     reasoning: string | undefined,
     capabilities: ChatGptWebCapabilities,
     captureDiagnostic?: (checkpoint: string) => Promise<void>,
+    retryCamoufoxPage = true,
   ): Promise<ChatGptWebModelMode> {
     const mode = resolveChatGptWebModelMode(modelId, reasoning, capabilities);
     const composer = await this.activeComposer(page);
@@ -1423,11 +1426,27 @@ export class ChatGptBrowserWorker {
       return mode;
     }
     const currentEffort = composerForm.locator(CHATGPT_EFFORT_CONTROL_SELECTOR).last();
+    if (managedBrowserEngine() === "camoufox"
+      && retryCamoufoxPage
+      && !await currentEffort.isVisible().catch(() => false)
+      && await page.getByTestId("model-switcher-dropdown-button").isVisible().catch(() => false)) {
+      await captureDiagnostic?.("camoufox-header-model-switcher-variant");
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 60_000 });
+      await this.prepareTemporaryChatSurface(page, captureDiagnostic);
+      return this.selectModelAndEffort(
+        page,
+        modelId,
+        reasoning,
+        capabilities,
+        captureDiagnostic,
+        false,
+      );
+    }
     const effortWaitAbort = new AbortController();
     try {
       const ready = await Promise.race([
-        currentEffort.waitFor({ state: "visible", timeout: 70_000, signal: effortWaitAbort.signal }).then(() => "effort" as const),
-        chatGptExpiredSessionAlert(page).waitFor({ state: "visible", timeout: 70_000, signal: effortWaitAbort.signal }).then(() => "session-expired" as const),
+        waitForVisible(currentEffort, 70_000, effortWaitAbort.signal).then(() => "effort" as const),
+        waitForVisible(chatGptExpiredSessionAlert(page), 70_000, effortWaitAbort.signal).then(() => "session-expired" as const),
       ]);
       if (ready === "session-expired") await throwIfChatGptSessionFailureAlert(page);
     } catch (error) {
@@ -1458,10 +1477,10 @@ export class ChatGptBrowserWorker {
     let ready: "effort" | "slider" | "rate-limit" | "session-expired";
     try {
       ready = await Promise.race([
-        effortChoice.waitFor({ state: "visible", timeout: 70_000, signal: waitAbort.signal }).then(() => "effort" as const),
-        effortSlider.waitFor({ state: "visible", timeout: 70_000, signal: waitAbort.signal }).then(() => "slider" as const),
-        chatGptRateLimitDialog(page).waitFor({ state: "visible", timeout: 70_000, signal: waitAbort.signal }).then(() => "rate-limit" as const),
-        chatGptExpiredSessionAlert(page).waitFor({ state: "visible", timeout: 70_000, signal: waitAbort.signal }).then(() => "session-expired" as const),
+        waitForVisible(effortChoice, 70_000, waitAbort.signal).then(() => "effort" as const),
+        waitForVisible(effortSlider, 70_000, waitAbort.signal).then(() => "slider" as const),
+        waitForVisible(chatGptRateLimitDialog(page), 70_000, waitAbort.signal).then(() => "rate-limit" as const),
+        waitForVisible(chatGptExpiredSessionAlert(page), 70_000, waitAbort.signal).then(() => "session-expired" as const),
       ]);
       if (ready === "rate-limit") await throwIfChatGptRateLimitDialog(page);
       if (ready === "session-expired") await throwIfChatGptSessionFailureAlert(page);
@@ -1929,7 +1948,6 @@ export class ChatGptBrowserWorker {
         .trimStart();
     }, undefined, { timeout: 20_000 });
   }
-
   private async assertPromptAttached(
     page: Page,
     prompt: string,
@@ -1946,8 +1964,10 @@ export class ChatGptBrowserWorker {
     }
     throwIfPromptAttachmentAborted(abortSignal);
     const commonPrefix = this.promptEquivalentPrefixLength(prompt, observed);
+    const expectedCodeUnit = prompt.charCodeAt(commonPrefix);
+    const actualCodeUnit = observed.charCodeAt(commonPrefix);
     throw new ChatGptPromptAttachmentIntegrityError(
-      `ChatGPT composer did not preserve the complete prompt (expectedChars=${prompt.length}, actualChars=${observed.length}, commonPrefixChars=${commonPrefix})`,
+      `ChatGPT composer did not preserve the complete prompt (expectedChars=${prompt.length}, actualChars=${observed.length}, commonPrefixChars=${commonPrefix}, expectedCodeUnit=${expectedCodeUnit}, actualCodeUnit=${actualCodeUnit})`,
     );
   }
 
@@ -2117,7 +2137,7 @@ export class ChatGptBrowserWorker {
       const composer = await this.activeComposer(page);
       // Playwright's multiline fill maps through an input action that ChatGPT's Lexical editor can
       // collapse to the first paragraph on the launcher-owned Electron surface. Clear separately,
-      // then transport the complete text through the browser's plain-text editing command.
+      // then transport the complete text through the browser-specific plain-text path.
       await composer.fill("");
       await composer.focus();
       await this.insertPromptText(page, prompt, abortSignal);
@@ -2318,6 +2338,16 @@ export class ChatGptBrowserWorker {
     throwIfPromptAttachmentAborted(abortSignal);
     const composer = await this.activeComposer(page);
     await composer.focus();
+    if (managedBrowserEngine() === "camoufox") {
+      const lines = text.split("\n");
+      for (let index = 0; index < lines.length; index += 1) {
+        throwIfPromptAttachmentAborted(abortSignal);
+        if (lines[index]) await page.keyboard.insertText(lines[index]!);
+        if (index < lines.length - 1) await page.keyboard.press("Shift+Enter");
+      }
+      throwIfPromptAttachmentAborted(abortSignal);
+      return;
+    }
     // CDP Input.insertText is interpreted as live typing by ChatGPT's Lexical plugins. On a large
     // JSON transport it can turn literal Markdown backticks into rich code nodes, remove the
     // delimiters from textContent, and leave the next insertion outside the intended block. The

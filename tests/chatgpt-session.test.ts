@@ -97,6 +97,7 @@ test("the new model rows cannot hide an authoritative five-step Pro effort slide
   const efforts = {
     first() { return this; },
     waitFor: async () => {},
+    isVisible: async () => true,
     count: async () => 2,
   };
   const menu = {
