@@ -6,6 +6,11 @@ import { VERSION } from "../src/version";
 
 const sourceBundle = resolve(process.argv[2] ?? "dist/runtime");
 const sourceRoot = resolve(import.meta.dir, "..");
+const packageJson = JSON.parse(readFileSync(join(sourceRoot, "package.json"), "utf8")) as {
+  dependencies?: Record<string, string>;
+};
+const expectedPlaywright = packageJson.dependencies?.["playwright-core"];
+if (!expectedPlaywright) throw new Error("package.json has no playwright-core dependency");
 const root = join(homedir(), `.codex-chatgpt-web-release-smoke-${process.pid}-${Date.now()}`);
 const firstLocation = join(root, "first-location");
 const runtimeRoot = join(root, "relocated-runtime");
@@ -15,7 +20,7 @@ renameSync(firstLocation, runtimeRoot);
 const manifest = JSON.parse(readFileSync(join(runtimeRoot, "manifest.json"), "utf8")) as Record<string, unknown>;
 if (manifest.schemaVersion !== 1
   || manifest.appVersion !== VERSION
-  || manifest.playwright !== "1.62.0"
+  || manifest.playwright !== expectedPlaywright
   || !/^[a-f0-9]{64}$/.test(String(manifest.bundleId ?? ""))) {
   throw new Error(`Unexpected runtime manifest: ${JSON.stringify(manifest)}`);
 }

@@ -17,9 +17,7 @@ jobs:
         with:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
-      - run: bun run check-version
-      - run: bun run typecheck
-      - run: bun test tests/*.test.ts
+      - run: bun run verify
       - run: bun run build
       - name: Archive runtime
         run: |
