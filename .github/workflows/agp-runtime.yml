@@ -1,0 +1,33 @@
+name: AGP runtime
+
+on:
+  push:
+    branches: [agp-camoufox-v4.0.0]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test tests/*.test.ts
+      - run: bun run build
+      - name: Archive runtime
+        run: |
+          tar -czf codex-chatgpt-web-linux-amd64.tar.gz -C dist/runtime .
+          sha256sum codex-chatgpt-web-linux-amd64.tar.gz > checksums.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-chatgpt-web-4.0.0-agp.1-linux-amd64
+          path: |
+            codex-chatgpt-web-linux-amd64.tar.gz
+            checksums.txt
+          if-no-files-found: error
