@@ -3,6 +3,7 @@ name: AGP runtime
 on:
   push:
     branches: [agp-camoufox-v4.0.0]
+    tags: ["v*-agp.*"]
   workflow_dispatch:
 
 permissions:
@@ -23,11 +24,44 @@ jobs:
       - name: Archive runtime
         run: |
           tar -czf codex-chatgpt-web-linux-amd64.tar.gz -C dist/runtime .
-          sha256sum codex-chatgpt-web-linux-amd64.tar.gz > checksums.txt
+          jq -n \
+            --arg version "$(jq -r .version package.json)" \
+            --arg gitSha "$GITHUB_SHA" \
+            --arg camoufox "$(jq -r '.dependencies["camoufox-js"]' package.json)" \
+            --arg playwright "$(jq -r '.dependencies["playwright-core"]' package.json)" \
+            '{version: $version, gitSha: $gitSha, camoufox: $camoufox, playwright: $playwright}' \
+            > release-manifest.json
+          sha256sum codex-chatgpt-web-linux-amd64.tar.gz release-manifest.json > checksums.txt
       - uses: actions/upload-artifact@v4
         with:
           name: codex-chatgpt-web-4.0.0-agp.1-linux-amd64
           path: |
             codex-chatgpt-web-linux-amd64.tar.gz
+            release-manifest.json
             checksums.txt
           if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: linux-runtime
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: codex-chatgpt-web-4.0.0-agp.1-linux-amd64
+          path: release-assets
+      - name: Verify immutable release assets
+        working-directory: release-assets
+        run: sha256sum -c checksums.txt
+      - name: Publish AGP Linux release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --prerelease \
+            --latest=false \
+            --generate-notes
