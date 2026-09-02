@@ -17,6 +17,7 @@ jobs:
         with:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
+      - run: bun install --cwd launcher --frozen-lockfile
       - run: bun run verify
       - run: bun run build
       - name: Archive runtime
