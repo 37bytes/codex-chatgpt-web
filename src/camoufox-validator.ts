@@ -4,6 +4,7 @@ import type { BrowserContextOptions } from "playwright-core";
 import {
   assertAuthenticatedChatGptPage,
   assertTemporaryChatPage,
+  dismissChatGptAccountChooser,
   CHATGPT_TEMPORARY_CHAT_URL,
   detectChatGptAccountCapabilities,
 } from "./chatgpt-session";
@@ -37,6 +38,7 @@ export async function validateCamoufoxStorageState(path: string): Promise<{
         page.locator('[data-testid="prompt-textarea"], #prompt-textarea, [contenteditable="true"][data-lexical-editor="true"]'),
       ).first();
       await composer.waitFor({ state: "visible", timeout: 60_000 });
+      await dismissChatGptAccountChooser(page);
       await assertAuthenticatedChatGptPage(page);
       await assertTemporaryChatPage(page);
       return {

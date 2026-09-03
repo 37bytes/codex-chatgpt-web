@@ -5,6 +5,7 @@ import {
   CHATGPT_EFFORT_MENU_SELECTOR,
   CHATGPT_EFFORT_SLIDER_SELECTOR,
   detectChatGptAccountCapabilities,
+  chatGptAccountChooserCandidate,
 } from "../src/chatgpt-session";
 
 test("login keeps the established turn composer contract", () => {
@@ -14,6 +15,12 @@ test("login keeps the established turn composer contract", () => {
   expect(turnSelectors).toContain('[contenteditable="true"][data-lexical-editor="true"]');
   expect(turnSelectors).not.toContain('form [contenteditable="true"]');
   expect(turnSelectors).not.toContain("form textarea[placeholder]");
+});
+
+test("account chooser detection is locale-independent", () => {
+  expect(chatGptAccountChooserCandidate("Ops Ops ops@37bytes.com")).toBe(true);
+  expect(chatGptAccountChooserCandidate("Choose an account")).toBe(false);
+  expect(chatGptAccountChooserCandidate("ChatGPT")).toBe(false);
 });
 
 test("the effort selector identifies the model slider instead of any composer menu button", () => {

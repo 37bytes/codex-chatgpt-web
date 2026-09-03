@@ -52,6 +52,7 @@ import {
   CHATGPT_COMPOSER_SELECTOR,
   CHATGPT_EFFORT_CONTROL_SELECTOR,
   CHATGPT_EFFORT_ITEM_SELECTOR,
+  dismissChatGptAccountChooser,
   CHATGPT_EFFORT_MENU_SELECTOR,
   CHATGPT_EFFORT_SLIDER_SELECTOR,
   CHATGPT_STOP_BUTTON_SELECTOR,
@@ -1626,6 +1627,10 @@ export class ChatGptBrowserWorker {
       composer = await this.activeComposer(page);
     } catch {
       throw new Error("ChatGPT web login is expired or the Temporary Chat surface is unavailable");
+    }
+    if (await dismissChatGptAccountChooser(page)) {
+      await captureDiagnostic?.("account-chooser-dismissed");
+      composer = await this.activeComposer(page);
     }
     if (await dismissChatGptTemporaryChatOnboarding(page)) {
       await captureDiagnostic?.("temporary-chat-onboarding-dismissed");

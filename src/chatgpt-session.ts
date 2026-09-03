@@ -71,6 +71,25 @@ async function anyVisible(locator: Locator): Promise<boolean> {
   return false;
 }
 
+export function chatGptAccountChooserCandidate(text: string): boolean {
+  return /[^\s@]+@[^\s@]+\.[^\s@]+/.test(text.trim());
+}
+
+export async function dismissChatGptAccountChooser(page: Page): Promise<boolean> {
+  const dialogs = page.locator('[role="dialog"]').filter({ visible: true });
+  for (let dialogIndex = 0; dialogIndex < await dialogs.count(); dialogIndex += 1) {
+    const buttons = dialogs.nth(dialogIndex).locator('button, [role="button"]').filter({ visible: true });
+    for (let buttonIndex = 0; buttonIndex < await buttons.count(); buttonIndex += 1) {
+      const button = buttons.nth(buttonIndex);
+      if (!chatGptAccountChooserCandidate(await button.innerText().catch(() => ""))) continue;
+      await button.click();
+      await dialogs.nth(dialogIndex).waitFor({ state: "hidden", timeout: 30_000 }).catch(() => undefined);
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function assertAuthenticatedChatGptPage(page: Page): Promise<void> {
   const composer = page.locator(
     CHATGPT_COMPOSER_SELECTOR,
