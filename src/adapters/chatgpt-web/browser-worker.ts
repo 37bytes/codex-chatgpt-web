@@ -1433,6 +1433,9 @@ export class ChatGptBrowserWorker {
       && await page.getByTestId("model-switcher-dropdown-button").isVisible().catch(() => false)) {
       await captureDiagnostic?.("camoufox-header-model-switcher-variant");
       await page.reload({ waitUntil: "domcontentloaded", timeout: 60_000 });
+      if (await dismissChatGptAccountChooser(page)) {
+        await captureDiagnostic?.("account-chooser-dismissed-after-reload");
+      }
       await this.prepareTemporaryChatSurface(page, captureDiagnostic);
       return this.selectModelAndEffort(
         page,

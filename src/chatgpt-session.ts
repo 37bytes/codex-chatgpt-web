@@ -87,7 +87,7 @@ export async function dismissChatGptAccountChooser(page: Page): Promise<boolean>
           && (bounds.width > 0 || bounds.height > 0);
       };
       const accountEmail = (text: string): boolean => /[^\s@]+@[^\s@]+\.[^\s@]+/.test(text.trim());
-      const candidates = [...root.querySelectorAll<HTMLElement>('button, a, [role="button"], div')]
+      const candidates = [...root.querySelectorAll<HTMLElement>("*")]
         .filter(candidate => rendered(candidate) && accountEmail(candidate.innerText))
         .sort((left, right) => left.innerText.length - right.innerText.length);
       const candidate = candidates[0];
