@@ -34,7 +34,7 @@ jobs:
           sha256sum codex-chatgpt-web-linux-amd64.tar.gz release-manifest.json > checksums.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: codex-chatgpt-web-4.0.0-agp.2-linux-amd64
+          name: codex-chatgpt-web-4.0.0-agp.3-linux-amd64
           path: |
             codex-chatgpt-web-linux-amd64.tar.gz
             release-manifest.json
@@ -50,7 +50,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: codex-chatgpt-web-4.0.0-agp.2-linux-amd64
+          name: codex-chatgpt-web-4.0.0-agp.3-linux-amd64
           path: release-assets
       - name: Verify immutable release assets
         working-directory: release-assets

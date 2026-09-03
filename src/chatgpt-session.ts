@@ -78,14 +78,26 @@ export function chatGptAccountChooserCandidate(text: string): boolean {
 export async function dismissChatGptAccountChooser(page: Page): Promise<boolean> {
   const dialogs = page.locator('[role="dialog"]').filter({ visible: true });
   for (let dialogIndex = 0; dialogIndex < await dialogs.count(); dialogIndex += 1) {
-    const buttons = dialogs.nth(dialogIndex).locator('button, [role="button"]').filter({ visible: true });
-    for (let buttonIndex = 0; buttonIndex < await buttons.count(); buttonIndex += 1) {
-      const button = buttons.nth(buttonIndex);
-      if (!chatGptAccountChooserCandidate(await button.innerText().catch(() => ""))) continue;
-      await button.click();
-      await dialogs.nth(dialogIndex).waitFor({ state: "hidden", timeout: 30_000 }).catch(() => undefined);
+    const dialog = dialogs.nth(dialogIndex);
+    const clicked = await dialog.evaluate((root) => {
+      const rendered = (candidate: HTMLElement): boolean => {
+        const style = getComputedStyle(candidate);
+        const bounds = candidate.getBoundingClientRect();
+        return candidate.isConnected && style.display !== "none" && style.visibility !== "hidden"
+          && (bounds.width > 0 || bounds.height > 0);
+      };
+      const accountEmail = (text: string): boolean => /[^\s@]+@[^\s@]+\.[^\s@]+/.test(text.trim());
+      const candidates = [...root.querySelectorAll<HTMLElement>('button, a, [role="button"], div')]
+        .filter(candidate => rendered(candidate) && accountEmail(candidate.innerText))
+        .sort((left, right) => left.innerText.length - right.innerText.length);
+      const candidate = candidates[0];
+      if (!candidate) return false;
+      candidate.click();
       return true;
-    }
+    });
+    if (!clicked) continue;
+    await dialog.waitFor({ state: "hidden", timeout: 30_000 }).catch(() => undefined);
+    return true;
   }
   return false;
 }
