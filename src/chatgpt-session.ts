@@ -86,10 +86,13 @@ export async function dismissChatGptAccountChooser(page: Page): Promise<boolean>
         return candidate.isConnected && style.display !== "none" && style.visibility !== "hidden"
           && (bounds.width > 0 || bounds.height > 0);
       };
-      const accountEmail = (text: string): boolean => /[^\s@]+@[^\s@]+\.[^\s@]+/.test(text.trim());
+      const accountEmail = (text: string | null | undefined): boolean => (
+        /[^\s@]+@[^\s@]+\.[^\s@]+/.test((text ?? "").trim())
+      );
+      const candidateText = (candidate: HTMLElement): string => candidate.innerText ?? candidate.textContent ?? "";
       const candidates = [...root.querySelectorAll<HTMLElement>("*")]
-        .filter(candidate => rendered(candidate) && accountEmail(candidate.innerText))
-        .sort((left, right) => left.innerText.length - right.innerText.length);
+        .filter(candidate => rendered(candidate) && accountEmail(candidateText(candidate)))
+        .sort((left, right) => candidateText(left).length - candidateText(right).length);
       const candidate = candidates[0];
       if (!candidate) return false;
       candidate.click();
