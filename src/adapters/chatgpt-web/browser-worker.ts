@@ -1437,6 +1437,14 @@ export class ChatGptBrowserWorker {
         await captureDiagnostic?.("account-chooser-dismissed-after-reload");
       }
       await this.prepareTemporaryChatSurface(page, captureDiagnostic);
+      const delayedChooserVisible = await waitForVisible(
+        page.locator('[role="dialog"]').filter({ visible: true }),
+        5_000,
+      ).then(() => true).catch(() => false);
+      if (delayedChooserVisible && await dismissChatGptAccountChooser(page)) {
+        await captureDiagnostic?.("delayed-account-chooser-dismissed");
+        await this.prepareTemporaryChatSurface(page, captureDiagnostic);
+      }
       return this.selectModelAndEffort(
         page,
         modelId,
