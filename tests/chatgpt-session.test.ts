@@ -6,6 +6,7 @@ import {
   CHATGPT_EFFORT_SLIDER_SELECTOR,
   detectChatGptAccountCapabilities,
   chatGptAccountChooserCandidate,
+  waitForAuthenticatedChatGptComposer,
 } from "../src/chatgpt-session";
 
 test("login keeps the established turn composer contract", () => {
@@ -21,6 +22,37 @@ test("account chooser detection is locale-independent", () => {
   expect(chatGptAccountChooserCandidate("Ops Ops ops@37bytes.com")).toBe(true);
   expect(chatGptAccountChooserCandidate("Choose an account")).toBe(false);
   expect(chatGptAccountChooserCandidate("ChatGPT")).toBe(false);
+});
+
+test("storage-state validation resolves the saved-account chooser before requiring a composer", async () => {
+  let chooserVisible = true;
+  let chooserClicks = 0;
+  const composer = {
+    count: async () => 1,
+    nth: () => ({ isVisible: async () => !chooserVisible }),
+  };
+  const chooser = {
+    evaluate: async () => {
+      chooserClicks += 1;
+      chooserVisible = false;
+      return true;
+    },
+  };
+  const chooserRoots = {
+    filter() { return this; },
+    count: async () => chooserVisible ? 1 : 0,
+    nth: () => chooser,
+  };
+  const page = {
+    locator: (selector: string) => {
+      if (selector === CHATGPT_COMPOSER_SELECTOR) return composer;
+      if (selector === '[role="dialog"], main') return chooserRoots;
+      throw new Error(`unexpected selector: ${selector}`);
+    },
+  };
+
+  await expect(waitForAuthenticatedChatGptComposer(page as never, 1_000)).resolves.toBeUndefined();
+  expect(chooserClicks).toBe(1);
 });
 
 test("the effort selector identifies the model slider instead of any composer menu button", () => {

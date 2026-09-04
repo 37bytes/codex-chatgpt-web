@@ -76,10 +76,10 @@ export function chatGptAccountChooserCandidate(text: string): boolean {
 }
 
 export async function dismissChatGptAccountChooser(page: Page): Promise<boolean> {
-  const dialogs = page.locator('[role="dialog"]').filter({ visible: true });
-  for (let dialogIndex = 0; dialogIndex < await dialogs.count(); dialogIndex += 1) {
-    const dialog = dialogs.nth(dialogIndex);
-    const clicked = await dialog.evaluate((root) => {
+  const roots = page.locator('[role="dialog"], main').filter({ visible: true });
+  for (let rootIndex = 0; rootIndex < await roots.count(); rootIndex += 1) {
+    const root = roots.nth(rootIndex);
+    const clicked = await root.evaluate((container) => {
       const rendered = (candidate: HTMLElement): boolean => {
         const style = getComputedStyle(candidate);
         const bounds = candidate.getBoundingClientRect();
@@ -90,7 +90,7 @@ export async function dismissChatGptAccountChooser(page: Page): Promise<boolean>
         /[^\s@]+@[^\s@]+\.[^\s@]+/.test((text ?? "").trim())
       );
       const candidateText = (candidate: HTMLElement): string => candidate.innerText ?? candidate.textContent ?? "";
-      const candidates = [...root.querySelectorAll<HTMLElement>("*")]
+      const candidates = [...container.querySelectorAll<HTMLElement>('button, a, [role="button"], [tabindex]')]
         .filter(candidate => rendered(candidate) && accountEmail(candidateText(candidate)))
         .sort((left, right) => candidateText(left).length - candidateText(right).length);
       const candidate = candidates[0];
@@ -99,10 +99,23 @@ export async function dismissChatGptAccountChooser(page: Page): Promise<boolean>
       return true;
     });
     if (!clicked) continue;
-    await dialog.waitFor({ state: "hidden", timeout: 30_000 }).catch(() => undefined);
     return true;
   }
   return false;
+}
+
+export async function waitForAuthenticatedChatGptComposer(page: Page, timeoutMs = 60_000): Promise<void> {
+  const composer = page.locator(CHATGPT_COMPOSER_SELECTOR);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await anyVisible(composer)) return;
+    if (await dismissChatGptAccountChooser(page)) {
+      await new Promise(resolveSleep => setTimeout(resolveSleep, 250));
+      continue;
+    }
+    await new Promise(resolveSleep => setTimeout(resolveSleep, 100));
+  }
+  throw new Error("ChatGPT authentication could not be verified: no visible composer is present");
 }
 
 export async function assertAuthenticatedChatGptPage(page: Page): Promise<void> {

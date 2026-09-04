@@ -1,1 +1,1 @@
-export const VERSION = "4.0.0-agp.6";
+export const VERSION = "4.0.0-agp.7";
