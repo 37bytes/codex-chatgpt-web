@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { camoufoxOS, camoufoxProxy, managedBrowserEngine } from "../src/camoufox-browser";
+import { camoufoxGeoIP, camoufoxOS, camoufoxProxy, managedBrowserEngine } from "../src/camoufox-browser";
 
 describe("managed Camoufox browser engine", () => {
   test("defaults to Chromium and accepts explicit Camoufox", () => {
@@ -19,5 +19,18 @@ describe("managed Camoufox browser engine", () => {
     expect(() => camoufoxProxy({ GOST_PROXY_URL: "http://user:secret@gost:3128" })).toThrow();
     expect(() => camoufoxProxy({ GOST_PROXY_URL: "socks5://gost:1080" })).toThrow();
     expect(() => camoufoxProxy({ GOST_PROXY_URL: "http://gost:3128/path" })).toThrow();
+  });
+
+  test("uses the pinned proxy address without public IP discovery", () => {
+    expect(camoufoxGeoIP({
+      GOST_PROXY_URL: "http://gost-ipv6-a-proxy:3128",
+      CODEX_CHATGPT_WEB_PROXY_IP: "2a01:4f8:c014:62c8::10",
+    })).toBe("2a01:4f8:c014:62c8::10");
+    expect(camoufoxGeoIP({ GOST_PROXY_URL: "http://gost-ipv6-a-proxy:3128" })).toBe(true);
+    expect(camoufoxGeoIP({})).toBe(false);
+    expect(() => camoufoxGeoIP({
+      GOST_PROXY_URL: "http://gost-ipv6-a-proxy:3128",
+      CODEX_CHATGPT_WEB_PROXY_IP: "not-an-ip",
+    })).toThrow();
   });
 });

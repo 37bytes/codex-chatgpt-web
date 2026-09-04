@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { isIP } from "node:net";
 import { launchOptions } from "camoufox-js";
 import { chromium, firefox, type Browser, type BrowserContext, type BrowserContextOptions } from "playwright-core";
 
@@ -28,6 +29,16 @@ export function camoufoxProxy(env: NodeJS.ProcessEnv = process.env): { server: s
   return { server: parsed.origin };
 }
 
+export function camoufoxGeoIP(env: NodeJS.ProcessEnv = process.env): string | boolean {
+  if (!camoufoxProxy(env)) return false;
+  const configured = env.CODEX_CHATGPT_WEB_PROXY_IP?.trim();
+  if (!configured) return true;
+  if (isIP(configured) === 0) {
+    throw new Error("CODEX_CHATGPT_WEB_PROXY_IP must be an IPv4 or IPv6 address");
+  }
+  return configured;
+}
+
 export function camoufoxOS(env: NodeJS.ProcessEnv = process.env): "windows" | "macos" | "linux" {
   const value = env.CODEX_CHATGPT_WEB_BROWSER_OS?.trim().toLowerCase() || "macos";
   if (value !== "windows" && value !== "macos" && value !== "linux") {
@@ -54,7 +65,7 @@ export async function launchManagedBrowser(options: {
     humanize: true,
     enable_cache: true,
     proxy,
-    geoip: proxy !== undefined,
+    geoip: camoufoxGeoIP(),
     exclude_addons: ["UBO"],
   });
   return firefox.launch(camoufoxOptions);
